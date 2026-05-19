@@ -15,29 +15,54 @@ export async function GET() {
       return NextResponse.json([]);
     }
 
+    // approved individual goals
     const { data: approvedSheets } = await supabaseServer
       .from("goal_sheets")
       .select("*")
       .eq("employee_id", user.id)
       .eq("status", "approved");
 
-    if (!approvedSheets?.length) {
-      return NextResponse.json([]);
+    let individualGoals: any[] = [];
+
+    if (approvedSheets?.length) {
+      const sheetIds = approvedSheets.map((s) => s.id);
+
+      const { data: goals } = await supabaseServer
+        .from("goals")
+        .select("*")
+        .in("goal_sheet_id", sheetIds);
+
+      individualGoals = goals || [];
     }
 
-    const sheetIds = approvedSheets.map((s) => s.id);
-
-    const { data: goals } = await supabaseServer
-      .from("goals")
+    // shared goals assigned to employee
+    const { data: sharedGoals } = await supabaseServer
+      .from("shared_goals")
       .select("*")
-      .in("goal_sheet_id", sheetIds);
+      .contains("assigned_to", [employeeEmail])
+      .eq("is_active", true);
 
-    return NextResponse.json(goals || []);
+    const mappedSharedGoals =
+      sharedGoals?.map((goal) => ({
+        id: goal.id,
+        title: `[Shared] ${goal.title}`,
+        target_value: goal.target_value,
+        uom_type: goal.uom_type,
+        is_shared: true,
+      })) || [];
+
+    return NextResponse.json([
+      ...individualGoals,
+      ...mappedSharedGoals,
+    ]);
+
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
-      { error: "Failed to fetch approved goals" },
+      {
+        error: "Failed to fetch approved goals",
+      },
       { status: 500 }
     );
   }

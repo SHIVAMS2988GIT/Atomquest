@@ -1,163 +1,230 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import toast from "react-hot-toast";
 import Navbar from "@/components/Navbar";
 
 type Goal = {
-  id: string;
   title: string;
-  target_value: number;
+  description: string;
+  thrust_area: string;
+  uom_type: string;
+  target_value: string;
+  weightage: string;
 };
 
-export default function EmployeePage() {
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [updates, setUpdates] = useState<Record<string, any>>({});
-  const [loading, setLoading] = useState(true);
+export default function EmployeeGoalPage() {
+  const [goals, setGoals] = useState<Goal[]>([
+    {
+      title: "",
+      description: "",
+      thrust_area: "",
+      uom_type: "",
+      target_value: "",
+      weightage: "",
+    },
+  ]);
 
-  useEffect(() => {
-    fetch("/api/employee/approved-goals")
-      .then((res) => res.json())
-      .then((data) => {
-        setGoals(data);
-        setLoading(false);
-      });
-  }, []);
-
-  const handleChange = (
-    goalId: string,
-    field: string,
+  const updateGoal = (
+    index: number,
+    field: keyof Goal,
     value: string
   ) => {
-    setUpdates((prev) => ({
-      ...prev,
-      [goalId]: {
-        ...prev[goalId],
-        [field]: value,
-      },
-    }));
+    const updated = [...goals];
+    updated[index][field] = value;
+    setGoals(updated);
   };
 
-  const submitUpdate = async (goalId: string) => {
-    const data = updates[goalId];
-
-    if (!data?.progress_percent || !data?.self_rating) {
-      toast.error("Fill required fields");
+  const addGoal = () => {
+    if (goals.length >= 8) {
+      toast.error("Maximum 8 goals allowed");
       return;
     }
 
-    const response = await fetch("/api/employee/quarterly-update", {
+    setGoals([
+      ...goals,
+      {
+        title: "",
+        description: "",
+        thrust_area: "",
+        uom_type: "",
+        target_value: "",
+        weightage: "",
+      },
+    ]);
+  };
+
+  const validateGoals = () => {
+    let totalWeight = 0;
+
+    for (const goal of goals) {
+      if (
+        !goal.title ||
+        !goal.description ||
+        !goal.thrust_area ||
+        !goal.uom_type ||
+        !goal.target_value ||
+        !goal.weightage
+      ) {
+        toast.error("All goal fields are required");
+        return false;
+      }
+
+      const weight = Number(goal.weightage);
+
+      if (weight < 10) {
+        toast.error("Minimum weightage per goal is 10%");
+        return false;
+      }
+
+      totalWeight += weight;
+    }
+
+    if (totalWeight !== 100) {
+      toast.error("Total goal weightage must equal 100%");
+      return false;
+    }
+
+    return true;
+  };
+
+  const submitGoals = async () => {
+    if (!validateGoals()) return;
+
+    const response = await fetch("/api/goals/submit", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        goal_id: goalId,
-        quarter: "Q1",
-        progress_percent: Number(data.progress_percent),
-        employee_comment: data.employee_comment || "",
-        self_rating: Number(data.self_rating),
+        employeeEmail: "employee@atomquest.com",
+        goals,
       }),
     });
 
     const result = await response.json();
 
     if (result.success) {
-      toast.success("Quarterly update saved");
+      toast.success("Goals submitted successfully");
     } else {
-      toast.error(result.error || "Save failed");
+      toast.error(result.error || "Submission failed");
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-100 p-8">
-        <Navbar />
-        <h1 className="text-3xl font-bold mt-8">Loading...</h1>
-      </div>
-    );
-  }
+  const totalWeight = goals.reduce(
+    (sum, goal) => sum + Number(goal.weightage || 0),
+    0
+  );
 
   return (
     <div className="min-h-screen bg-slate-100 p-8">
       <Navbar />
 
       <h1 className="text-4xl font-bold mb-2">
-        Quarterly Progress Updates
+        Goal Creation Portal
       </h1>
 
-      <p className="text-gray-600 mb-8">
-        Update progress on approved goals
+      <p className="text-gray-600 mb-2">
+        Define annual employee goals
       </p>
 
-      {goals.length === 0 ? (
-        <div className="bg-white p-6 rounded-2xl shadow">
-          No approved goals found.
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {goals.map((goal) => (
-            <div
-              key={goal.id}
-              className="bg-white rounded-2xl shadow p-6"
+      <p className="font-semibold mb-8">
+        Total Weightage: {totalWeight}%
+      </p>
+
+      <div className="space-y-6">
+        {goals.map((goal, index) => (
+          <div
+            key={index}
+            className="bg-white rounded-2xl shadow p-6"
+          >
+            <h2 className="text-2xl font-bold mb-4">
+              Goal {index + 1}
+            </h2>
+
+            <input
+              type="text"
+              placeholder="Goal Title"
+              value={goal.title}
+              onChange={(e) =>
+                updateGoal(index, "title", e.target.value)
+              }
+              className="w-full border p-3 rounded-xl mb-4"
+            />
+
+            <textarea
+              placeholder="Goal Description"
+              value={goal.description}
+              onChange={(e) =>
+                updateGoal(index, "description", e.target.value)
+              }
+              className="w-full border p-3 rounded-xl mb-4"
+              rows={4}
+            />
+
+            <input
+              type="text"
+              placeholder="Thrust Area"
+              value={goal.thrust_area}
+              onChange={(e) =>
+                updateGoal(index, "thrust_area", e.target.value)
+              }
+              className="w-full border p-3 rounded-xl mb-4"
+            />
+
+            <select
+              value={goal.uom_type}
+              onChange={(e) =>
+                updateGoal(index, "uom_type", e.target.value)
+              }
+              className="w-full border p-3 rounded-xl mb-4"
             >
-              <h2 className="text-2xl font-bold">
-                {goal.title}
-              </h2>
+              <option value="">Select Unit of Measurement</option>
+              <option value="numeric_min">Numeric (Higher Better)</option>
+              <option value="numeric_max">Numeric (Lower Better)</option>
+              <option value="percentage">Percentage</option>
+              <option value="timeline">Timeline</option>
+              <option value="zero">Zero-based</option>
+            </select>
 
-              <p className="text-gray-500 mb-4">
-                Target: {goal.target_value}
-              </p>
+            <input
+              type="number"
+              placeholder="Target Value"
+              value={goal.target_value}
+              onChange={(e) =>
+                updateGoal(index, "target_value", e.target.value)
+              }
+              className="w-full border p-3 rounded-xl mb-4"
+            />
 
-              <input
-                type="number"
-                placeholder="Progress %"
-                className="w-full border p-3 rounded-xl mb-4"
-                onChange={(e) =>
-                  handleChange(
-                    goal.id,
-                    "progress_percent",
-                    e.target.value
-                  )
-                }
-              />
+            <input
+              type="number"
+              placeholder="Weightage (%)"
+              value={goal.weightage}
+              onChange={(e) =>
+                updateGoal(index, "weightage", e.target.value)
+              }
+              className="w-full border p-3 rounded-xl"
+            />
+          </div>
+        ))}
+      </div>
 
-              <input
-                type="number"
-                placeholder="Self Rating (1-5)"
-                className="w-full border p-3 rounded-xl mb-4"
-                onChange={(e) =>
-                  handleChange(
-                    goal.id,
-                    "self_rating",
-                    e.target.value
-                  )
-                }
-              />
+      <div className="flex gap-4 mt-8">
+        <button
+          onClick={addGoal}
+          className="bg-blue-600 text-white px-6 py-3 rounded-xl"
+        >
+          Add Goal
+        </button>
 
-              <textarea
-                placeholder="Update comments"
-                className="w-full border p-3 rounded-xl mb-4"
-                rows={4}
-                onChange={(e) =>
-                  handleChange(
-                    goal.id,
-                    "employee_comment",
-                    e.target.value
-                  )
-                }
-              />
-
-              <button
-                onClick={() => submitUpdate(goal.id)}
-                className="bg-blue-600 text-white px-6 py-3 rounded-xl"
-              >
-                Submit Q1 Update
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+        <button
+          onClick={submitGoals}
+          className="bg-green-600 text-white px-6 py-3 rounded-xl"
+        >
+          Submit Goals
+        </button>
+      </div>
     </div>
   );
 }
